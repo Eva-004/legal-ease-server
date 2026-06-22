@@ -25,45 +25,58 @@ async function run() {
     await client.connect();
     const db = client.db("legal-ease");
     const userCollection = db.collection("user");
-    const lawyerCollection= db.collection('lawyers');
+  
 
     app.patch("/api/user/update-profile", async (req, res) => {
-    
-        const { email,name, image } = req.body;
 
-        const result = await userCollection.updateOne(
-          { email },
-          {
-            $set: { name, image },
-          }
-        );
+      const { email, name, image } = req.body;
 
-        res.json(result)
+      const result = await userCollection.updateOne(
+        { email },
+        {
+          $set: { name, image },
+        }
+      );
+
+      res.json(result)
     });
 
-     app.get('/lawyers' , async (req, res) => {
+    app.get('/lawyers', async (req, res) => {
 
       const search = req.query.search || '';
       const specialization = req.query.specialization || '';
+      const status = req.query.status || "";
 
-      const query = {};
+      const query = {
+        role: "lawyer"
+      };
 
       if (search) {
 
-        query.title = {
+        query.name = {
           $regex: search,
           $options: "i"
         }
 
       }
-      if (category) {
+      if (specialization) {
         query.specialization = specialization
       }
 
-      const result = await lawyerCollection.find(query).toArray();
+      
+       if (status) {
+    query.status = status;
+  }
+      const result = await userCollection .find(query).toArray();
 
       res.json(result)
     });
+
+    app.get('/lawyers/:id', async (req, res) => {
+      const { id } = req.params;
+      const result = await userCollection.findOne({ _id: new ObjectId(id) });
+      res.json(result)
+    })
 
     await client.db("admin").command({ ping: 1 });
     console.log(
