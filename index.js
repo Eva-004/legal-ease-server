@@ -49,6 +49,7 @@ async function run() {
     await client.connect();
     const db = client.db("legal-ease");
     const userCollection = db.collection("user");
+    const hiringCollection = db.collection("hiring")
 
 
     app.patch("/api/user/update-profile",verifyToken, async (req, res) => {
@@ -129,6 +130,19 @@ async function run() {
 
       res.send(lawyers);
     });
+
+    app.post("/hire-lawyer", verifyToken, async (req, res) => {
+  const hireData = req.body;
+
+  const result = await hiringCollection.insertOne({
+    ...hireData,
+    status: "pending",
+    paymentStatus: "unpaid",
+    createdAt: new Date(),
+  });
+
+  res.json(result);
+});
 
     await client.db("admin").command({ ping: 1 });
     console.log(
