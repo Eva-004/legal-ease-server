@@ -25,7 +25,7 @@ async function run() {
     await client.connect();
     const db = client.db("legal-ease");
     const userCollection = db.collection("user");
-  
+
 
     app.patch("/api/user/update-profile", async (req, res) => {
 
@@ -46,6 +46,8 @@ async function run() {
       const search = req.query.search || '';
       const specialization = req.query.specialization || '';
       const status = req.query.status || "";
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 8;
 
       const query = {
         role: "lawyer"
@@ -63,20 +65,46 @@ async function run() {
         query.specialization = specialization
       }
 
-      
-       if (status) {
-    query.status = status;
-  }
-      const result = await userCollection .find(query).toArray();
 
-      res.json(result)
+      if (status) {
+        query.status = status;
+      }
+      const totalLawyers = await userCollection.countDocuments(query);
+      const lawyers = await userCollection.find(query).skip((page - 1) * limit).limit(limit).toArray();
+
+      res.json({
+        lawyers,
+        totalLawyers,
+        currentPage: page,
+        totalPages: Math.ceil(totalLawyers / limit)
+      });
     });
 
     app.get('/lawyers/:id', async (req, res) => {
       const { id } = req.params;
       const result = await userCollection.findOne({ _id: new ObjectId(id) });
       res.json(result)
-    })
+    });
+
+    app.get("/featured-lawyers", async (req, res) => {
+
+      const lawyers = await userCollection
+        .aggregate([
+          {
+            $match: {
+              role: "lawyer",
+            },
+          },
+          {
+            $sample: {
+              size: 6,
+            },
+          },
+        ])
+        .toArray();
+
+      res.send(lawyers);
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
