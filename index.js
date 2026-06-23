@@ -5,6 +5,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 dontenv.config();
 
 const uri = process.env.MONGODB_URI;
+const { createRemoteJWKSet, jwtVerify } = require('jose-cjs');
 
 const app = express();
 const PORT = process.env.PORT;
@@ -20,6 +21,29 @@ const client = new MongoClient(uri, {
   },
 });
 
+const JWKS = createRemoteJWKSet(
+  new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
+)
+
+const verifyToken = async(req,res,next)=>{
+  const authHeader = req?.headers.authorization;
+  if(!authHeader){
+   return res.status(401).json({message: 'unauthorized'})
+  }
+  const token = authHeader.split(' ')[1];
+    if(!token){
+     return res.status(401).json({message: 'unauthorized'})
+    }
+    
+    try {
+      const {payload} = await jwtVerify(token,JWKS)
+      console.log(payload)
+      next();
+    } catch (error) {
+      res.status(403).json({message: 'forbidden'})
+    }
+}
+
 async function run() {
   try {
     await client.connect();
@@ -27,10 +51,10 @@ async function run() {
     const userCollection = db.collection("user");
 
 
-    app.patch("/api/user/update-profile", async (req, res) => {
+    app.patch("/api/user/update-profile",verifyToken, async (req, res) => {
 
       const { email, name, image } = req.body;
-
+      console.log(email)
       const result = await userCollection.updateOne(
         { email },
         {
