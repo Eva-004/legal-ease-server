@@ -185,6 +185,88 @@ async function run() {
       res.json(result);
     });
 
+    app.post("/lawyer/services/:email", verifyToken, async (req, res) => {
+      const { email } = req.params;
+      const { service } = req.body;
+
+      const result = await userCollection.updateOne(
+        { email, role: "lawyer" },
+        {
+          $push: {
+            services: {
+              id: new ObjectId().toString(),
+              title: service,
+              createdAt: new Date(),
+            },
+          },
+        }
+      );
+
+      res.json(result);
+    });
+
+    app.patch(
+      "/lawyer/services/:email/:serviceId",
+      verifyToken,
+      async (req, res) => {
+        const { email, serviceId } = req.params;
+        const { title } = req.body;
+
+        const result = await userCollection.updateOne(
+          {
+            email,
+            role: "lawyer",
+            "services.id": serviceId,
+          },
+          {
+            $set: {
+              "services.$.title": title,
+            },
+          }
+        );
+
+        res.json(result);
+      }
+    );
+
+    app.delete(
+      "/lawyer/services/:email/:serviceId",
+      verifyToken,
+      async (req, res) => {
+        const { email, serviceId } = req.params;
+
+        const result = await userCollection.updateOne(
+          {
+            email,
+            role: "lawyer",
+          },
+          {
+            $pull: {
+              services: {
+                id: serviceId,
+              },
+            },
+          }
+        );
+
+        res.json(result);
+      }
+    );
+
+    app.get("/lawyer/services/:email", async (req, res) => {
+      const { email } = req.params;
+
+      const lawyer = await userCollection.findOne(
+        { email, role: "lawyer" },
+        {
+          projection: {
+            services: 1,
+          },
+        }
+      );
+
+      res.json(lawyer?.services || []);
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
