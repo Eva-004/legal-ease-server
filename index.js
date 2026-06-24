@@ -25,23 +25,23 @@ const JWKS = createRemoteJWKSet(
   new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
 )
 
-const verifyToken = async(req,res,next)=>{
+const verifyToken = async (req, res, next) => {
   const authHeader = req?.headers.authorization;
-  if(!authHeader){
-   return res.status(401).json({message: 'unauthorized'})
+  if (!authHeader) {
+    return res.status(401).json({ message: 'unauthorized' })
   }
   const token = authHeader.split(' ')[1];
-    if(!token){
-     return res.status(401).json({message: 'unauthorized'})
-    }
-    
-    try {
-      const {payload} = await jwtVerify(token,JWKS)
-      console.log(payload)
-      next();
-    } catch (error) {
-      res.status(403).json({message: 'forbidden'})
-    }
+  if (!token) {
+    return res.status(401).json({ message: 'unauthorized' })
+  }
+
+  try {
+    const { payload } = await jwtVerify(token, JWKS)
+    console.log(payload)
+    next();
+  } catch (error) {
+    res.status(403).json({ message: 'forbidden' })
+  }
 }
 
 async function run() {
@@ -52,7 +52,7 @@ async function run() {
     const hiringCollection = db.collection("hiring")
 
 
-    app.patch("/api/user/update-profile",verifyToken, async (req, res) => {
+    app.patch("/api/user/update-profile", verifyToken, async (req, res) => {
 
       const { email, name, image } = req.body;
       console.log(email)
@@ -132,17 +132,59 @@ async function run() {
     });
 
     app.post("/hire-lawyer", verifyToken, async (req, res) => {
-  const hireData = req.body;
+      const hireData = req.body;
 
-  const result = await hiringCollection.insertOne({
-    ...hireData,
-    status: "pending",
-    paymentStatus: "unpaid",
-    createdAt: new Date(),
-  });
+      const result = await hiringCollection.insertOne({
+        ...hireData,
+        status: "pending",
+        paymentStatus: "unpaid",
+        createdAt: new Date(),
+      });
 
-  res.json(result);
-});
+      res.json(result);
+    });
+
+    app.get("/hire-lawyer", verifyToken, async (req, res) => {
+      const result = await hiringCollection.find().toArray();
+      res.json(result);
+    });
+
+    app.get("/lawyer/:email", async (req, res) => {
+      const email = req.params.email;
+
+      const lawyer = await userCollection.findOne({
+        email,
+        role: "lawyer",
+      });
+
+      res.json(lawyer);
+    });
+
+    app.patch("/lawyer/profile/:email", async (req, res) => {
+      const email = req.params.email;
+
+      const {
+        specialization,
+        consultationFee,
+        status,
+        bio,
+      } = req.body;
+
+      const result = await userCollection.updateOne(
+        { email },
+        {
+          $set: {
+            specialization,
+            consultationFee,
+            status,
+            bio,
+          },
+        }
+      );
+
+      res.json(result);
+    });
+
 
     await client.db("admin").command({ ping: 1 });
     console.log(
