@@ -1,6 +1,7 @@
 const express = require("express");
 const dontenv = require("dotenv");
 const cors = require("cors");
+
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 dontenv.config();
 
@@ -12,6 +13,7 @@ const PORT = process.env.PORT;
 
 app.use(express.json());
 app.use(cors());
+
 
 const client = new MongoClient(uri, {
   serverApi: {
@@ -50,7 +52,108 @@ async function run() {
     const db = client.db("legal-ease");
     const userCollection = db.collection("user");
     const hiringCollection = db.collection("hiring")
+    const transactionCollection = db.collection("transactions");
+    const commentsCollection = db.collection("comments")
 
+    app.post("/comments", verifyToken, async (req, res) => {
+      const { userId, name, lawyerId, comment } = req.body;
+
+      const result = await commentsCollection.insertOne({
+        userId,
+        userName: name,
+        lawyerId,
+        lawyerName,
+        comment,
+        createdAt: new Date(),
+      });
+
+      res.json(result);
+    });
+
+    app.get("/comments/:lawyerId", verifyToken, async (req, res) => {
+      const { lawyerId } = req.params;
+
+      const comments = await commentsCollection
+        .find({ lawyerId })
+        .sort({ createdAt: -1 })
+        .toArray();
+
+      res.json(comments);
+
+    });
+
+    app.get("/comments", verifyToken, async (req, res) => {
+      const comments = await commentsCollection
+        .find({})
+        .sort({ createdAt: -1 })
+        .toArray();
+
+      console.log("comments:", comments);
+
+      res.json(comments);
+    });
+
+    app.post("/payment-success", async (req, res) => {
+      try {
+        const {
+          stripeSessionId,
+          paymentIntentId,
+          amount,
+          hiringId,
+          lawyerId,
+          userId,
+          userEmail,
+          title,
+        } = req.body;
+
+        const exists = await transactionCollection.findOne({
+          stripeSessionId,
+        });
+
+        if (exists) {
+          return res.send({ success: true, message: "Already processed" });
+        }
+
+        await transactionCollection.insertOne({
+          stripeSessionId,
+          paymentIntentId,
+          amount,
+          paymentStatus: "paid",
+          userId,
+          userEmail,
+          lawyerId,
+          hiringId,
+          title,
+          createdAt: new Date(),
+        });
+
+        await hiringCollection.updateOne(
+          { _id: new ObjectId(hiringId) },
+          {
+            $set: {
+              paymentStatus: "paid",
+              transactionId: stripeSessionId,
+              paymentIntentId,
+              paidAt: new Date(),
+            },
+          }
+        );
+
+        await userCollection.updateOne(
+          { _id: new ObjectId(lawyerId) },
+          {
+            $set: {
+              status: "busy",
+            },
+          }
+        );
+
+        res.send({ success: true });
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ success: false });
+      }
+    });
 
     app.patch("/api/user/update-profile", verifyToken, async (req, res) => {
 
@@ -147,6 +250,27 @@ async function run() {
     app.get("/hire-lawyer", verifyToken, async (req, res) => {
       const result = await hiringCollection.find().toArray();
       res.json(result);
+    });
+
+    app.patch("/hire-lawyer/:id", verifyToken, async (req, res) => {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!["accepted", "rejected"].includes(status)) {
+        return res.status(400).send({ message: "Invalid status" });
+      }
+
+      const result = await hiringCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            status,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      res.send(result);
     });
 
     app.get("/lawyer/:email", async (req, res) => {
@@ -253,7 +377,7 @@ async function run() {
       }
     );
 
-    app.get("/lawyer/services/:email", async (req, res) => {
+    app.get("/lawyer/services/:email", verifyToken, async (req, res) => {
       const { email } = req.params;
 
       const lawyer = await userCollection.findOne(
