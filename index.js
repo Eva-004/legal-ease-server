@@ -67,10 +67,10 @@ async function run() {
       res.json(result);
     });
 
-     app.patch("/users/:id", verifyToken, async (req, res) => {
+    app.patch("/users/:id", verifyToken, async (req, res) => {
 
       const { id } = req.params;
-      const { role} = req.body;
+      const { role } = req.body;
 
       const result = await userCollection.updateOne(
         { _id: new ObjectId(id) },
@@ -97,7 +97,7 @@ async function run() {
     });
 
     app.post("/comments", verifyToken, async (req, res) => {
-      const { userId, name, lawyerId, comment,lawyerName } = req.body;
+      const { userId, name, lawyerId, comment, lawyerName } = req.body;
 
       const result = await commentsCollection.insertOne({
         userId,
@@ -215,6 +215,9 @@ async function run() {
             $set: {
               status: "busy",
             },
+            $inc: {
+              totalHire: 1,
+            },
           }
         );
 
@@ -228,14 +231,14 @@ async function run() {
     app.patch("/api/user/update-profile", verifyToken, async (req, res) => {
 
       const { email, name, image } = req.body;
-      console.log(email)
+        console.log(req.body);
       const result = await userCollection.updateOne(
         { email },
         {
           $set: { name, image },
         }
       );
-
+       console.log(result);
       res.json(result)
     });
 
@@ -253,10 +256,20 @@ async function run() {
 
       if (search) {
 
-        query.name = {
+         query.$or = [
+      {
+        name: {
           $regex: search,
-          $options: "i"
-        }
+          $options: "i",
+        },
+      },
+      {
+        specialization: {
+          $regex: search,
+          $options: "i",
+        },
+      },
+    ];
 
       }
       if (specialization) {
@@ -277,6 +290,18 @@ async function run() {
         totalPages: Math.ceil(totalLawyers / limit)
       });
     });
+    
+    app.get("/top-lawyers", async (req, res) => {
+  
+    const topLawyers = await userCollection
+      .find({ role: "lawyer" })
+      .sort({ totalHire: -1 })
+      .limit(3)
+      .toArray();
+
+    res.json(topLawyers);
+  
+});
 
     app.get('/lawyers/:id', async (req, res) => {
       const { id } = req.params;
