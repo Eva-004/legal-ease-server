@@ -57,6 +57,45 @@ async function run() {
     const transactionCollection = db.collection("transactions");
     const commentsCollection = db.collection("comments")
 
+    app.get("/transaction", verifyToken, async (req, res) => {
+      const result = await transactionCollection.find().toArray();
+      res.json(result);
+    });
+
+    app.get("/users", verifyToken, async (req, res) => {
+      const result = await userCollection.find().toArray();
+      res.json(result);
+    });
+
+     app.patch("/users/:id", verifyToken, async (req, res) => {
+
+      const { id } = req.params;
+      const { role} = req.body;
+
+      const result = await userCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            role,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      res.json(result);
+
+    });
+
+    app.delete("/users/:id", verifyToken, async (req, res) => {
+      const { id } = req.params;
+
+      const result = await userCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+
+      res.json(result);
+    });
+
     app.post("/comments", verifyToken, async (req, res) => {
       const { userId, name, lawyerId, comment,lawyerName } = req.body;
 
