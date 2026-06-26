@@ -40,6 +40,8 @@ const verifyToken = async (req, res, next) => {
   try {
     const { payload } = await jwtVerify(token, JWKS)
     console.log(payload)
+    req.user = payload;
+    console.log(req.user)
     next();
   } catch (error) {
     res.status(403).json({ message: 'forbidden' })
@@ -56,7 +58,7 @@ async function run() {
     const commentsCollection = db.collection("comments")
 
     app.post("/comments", verifyToken, async (req, res) => {
-      const { userId, name, lawyerId, comment } = req.body;
+      const { userId, name, lawyerId, comment,lawyerName } = req.body;
 
       const result = await commentsCollection.insertOne({
         userId,
@@ -91,6 +93,35 @@ async function run() {
       console.log("comments:", comments);
 
       res.json(comments);
+    });
+
+    app.patch("/comments/:id", verifyToken, async (req, res) => {
+
+      const { id } = req.params;
+      const { comment } = req.body;
+
+      const result = await commentsCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            comment,
+            updatedAt: new Date(),
+          },
+        }
+      );
+
+      res.json(result);
+
+    });
+
+    app.delete("/comments/:id", verifyToken, async (req, res) => {
+      const { id } = req.params;
+
+      const result = await commentsCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+
+      res.json(result);
     });
 
     app.post("/payment-success", async (req, res) => {
@@ -390,6 +421,22 @@ async function run() {
       );
 
       res.json(lawyer?.services || []);
+    });
+
+    app.get("/can-comment/:lawyerId", verifyToken, async (req, res) => {
+      console.log(req.user);
+      const lawyerId = req.params.lawyerId;
+      const userId = req.user.id;
+
+      const hiring = await hiringCollection.findOne({
+        lawyerId,
+        userId,
+        paymentStatus: "paid"
+      });
+
+      res.json({
+        canComment: !!hiring
+      });
     });
 
     await client.db("admin").command({ ping: 1 });
